@@ -1,0 +1,4 @@
+/target
+/src-tauri/gen/*/build
+/src-tauri/gen/android/.gradle
+node_modules
