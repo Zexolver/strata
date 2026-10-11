@@ -78,6 +78,22 @@ fn notify(app: &AppHandle) {
     let _ = app.emit_to("ui", "state", snapshot(&st));
 }
 
+/// On Linux, Tauri stacks child webviews in a vertical GTK box and ignores positions, so the
+/// chrome webview is pinned to a fixed height (or given all the space when an overlay is open).
+#[cfg(target_os = "linux")]
+fn pin_chrome(app: &AppHandle, tall: bool) {
+    use gtk::prelude::*;
+    if let Some(ui) = app.get_webview("ui") {
+        let _ = ui.with_webview(move |pw| {
+            let w = pw.inner();
+            w.set_size_request(-1, if tall { -1 } else { CHROME_H as i32 });
+            if let Some(b) = w.parent().and_then(|p| p.downcast::<gtk::Box>().ok()) {
+                b.set_child_packing(&w, tall, true, 0, gtk::PackType::Start);
+            }
+        });
+    }
+}
+
 /// Position the chrome webview and the active tab; hide every other tab.
 fn layout(app: &AppHandle) {
     let Some(window) = app.get_window("main") else { return };
@@ -85,6 +101,8 @@ fn layout(app: &AppHandle) {
     let (w, h) = (size.width as f64 / scale, size.height as f64 / scale);
     let st = app.state::<AppState>();
     let tabs = st.tabs.lock().unwrap();
+    #[cfg(target_os = "linux")]
+    pin_chrome(app, tabs.overlay);
     if let Some(ui) = app.get_webview("ui") {
         let ui_h = if tabs.overlay { h } else { CHROME_H.min(h) };
         let _ = ui.set_position(LogicalPosition::new(0.0, 0.0));
@@ -350,7 +368,21 @@ pub fn run() {
                     layout(&handle);
                 }
             });
-            open_tab(app.handle(), None, None)?;
+            // `strata [--profile ID] URL...`: open the given pages (profile applies to the URLs after it).
+            let mut profile: Option<String> = None;
+            let mut opened = false;
+            let mut args = std::env::args().skip(1);
+            while let Some(a) = args.next() {
+                if a == "--profile" {
+                    profile = args.next();
+                } else {
+                    open_tab(app.handle(), Some(a), profile.clone())?;
+                    opened = true;
+                }
+            }
+            if !opened {
+                open_tab(app.handle(), None, None)?;
+            }
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -2925,12 +2925,14 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 name = "strata"
 version = "0.1.0"
 dependencies = [
+ "gtk",
  "serde",
  "serde_json",
  "strata-core",
  "tauri",
  "tauri-build",
  "ureq",
+ "webkit2gtk",
 ]
 
 [[package]]
