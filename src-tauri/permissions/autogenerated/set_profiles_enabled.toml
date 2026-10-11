@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-profiles-enabled"
+description = "Enables the set_profiles_enabled command without any pre-configured scope."
+commands.allow = ["set_profiles_enabled"]
+
+[[permission]]
+identifier = "deny-set-profiles-enabled"
+description = "Denies the set_profiles_enabled command without any pre-configured scope."
+commands.deny = ["set_profiles_enabled"]

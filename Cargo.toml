@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/strata-core"]
+members = ["crates/strata-core", "src-tauri"]
 
 [profile.release]
 opt-level = "s"

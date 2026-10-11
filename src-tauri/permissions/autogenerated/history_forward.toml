@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-history-forward"
+description = "Enables the history_forward command without any pre-configured scope."
+commands.allow = ["history_forward"]
+
+[[permission]]
+identifier = "deny-history-forward"
+description = "Denies the history_forward command without any pre-configured scope."
+commands.deny = ["history_forward"]

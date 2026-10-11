@@ -1,0 +1,26 @@
+:root { color-scheme: light dark; --bg:#f4f5f8; --bar:#e7e9ef; --fg:#1b1d24; --muted:#6b7080; --accent:#4c6ef5; --card:#fff; --line:#d3d6df; }
+:root[data-theme="dark"] { color-scheme: dark; --bg:#16171d; --bar:#20222b; --fg:#e4e6ee; --muted:#8b90a0; --accent:#7aa2f7; --card:#1c1e26; --line:#2f323d; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#16171d; --bar:#20222b; --fg:#e4e6ee; --muted:#8b90a0; --accent:#7aa2f7; --card:#1c1e26; --line:#2f323d; } }
+* { box-sizing: border-box; }
+html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:14px system-ui, sans-serif; overflow:hidden; user-select:none; }
+button { font:inherit; color:inherit; background:none; border:0; border-radius:6px; padding:4px 9px; cursor:pointer; }
+button:hover { background:color-mix(in srgb, var(--fg) 12%, transparent); }
+input, select { font:inherit; color:inherit; background:var(--card); border:1px solid var(--line); border-radius:6px; padding:5px 8px; }
+#chrome { height:88px; background:var(--bar); border-bottom:1px solid var(--line); display:flex; flex-direction:column; }
+#tabs { display:flex; gap:2px; padding:5px 6px 0; height:40px; align-items:flex-end; overflow-x:auto; }
+.tab { display:flex; align-items:center; gap:6px; min-width:90px; max-width:200px; flex:1 1 160px; height:34px; padding:0 8px; border-radius:8px 8px 0 0; background:transparent; border-top:3px solid transparent; cursor:pointer; }
+.tab.active { background:var(--bg); }
+.tab .title { flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.tab .x { padding:0 5px; }
+#bar { display:flex; gap:4px; padding:5px 8px; align-items:center; flex:1; background:var(--bg); }
+#url { flex:1; }
+.hidden { display:none !important; }
+#panel { position:fixed; inset:88px 0 0 0; background:var(--bg); overflow:auto; padding:24px; }
+#panel > div { max-width:640px; margin:0 auto; }
+h2 { margin:0 0 12px; font-size:18px; }
+h3 { margin:22px 0 8px; font-size:13px; text-transform:uppercase; color:var(--muted); letter-spacing:.05em; }
+.row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 0; border-bottom:1px solid var(--line); }
+.row small { color:var(--muted); display:block; }
+.badge { font-size:11px; color:var(--muted); border:1px solid var(--line); border-radius:4px; padding:1px 5px; margin-left:6px; }
+.form { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+#err { color:#e5484d; margin-top:8px; }
