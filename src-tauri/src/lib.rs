@@ -60,6 +60,10 @@ struct TabUpdate {
     loading: Option<bool>,
 }
 
+fn is_newtab(u: &tauri::Url) -> bool {
+    u.path().ends_with(NEWTAB)
+}
+
 fn label(id: u32) -> String {
     format!("tab-{id}")
 }
@@ -136,7 +140,7 @@ fn open_tab(app: &AppHandle, input: Option<String>, profile: Option<String>) -> 
         _ => WebviewUrl::App(NEWTAB.into()),
     };
 
-    let (app_nav, app_load, app_title) = (app.clone(), app.clone(), app.clone());
+    let (app_load, app_title) = (app.clone(), app.clone());
     let (blocker_nav, blocker_load) = (st.blocker.clone(), st.blocker.clone());
     let adblock_nav = app.clone();
     let mut builder = WebviewBuilder::new(label(id), url)
@@ -152,7 +156,6 @@ fn open_tab(app: &AppHandle, input: Option<String>, profile: Option<String>) -> 
             if on && blocker_nav.should_block(u.as_str(), u.as_str(), "document") {
                 return false;
             }
-            let _ = app_nav.emit_to("ui", "tab-update", TabUpdate { id, url: Some(u.to_string()), title: None, loading: Some(true) });
             true
         })
         .on_page_load(move |wv, payload| {
@@ -164,7 +167,8 @@ fn open_tab(app: &AppHandle, input: Option<String>, profile: Option<String>) -> 
                     let _ = wv.eval(js);
                 }
             }
-            let _ = app_load.emit_to("ui", "tab-update", TabUpdate { id, url: Some(url), title: None, loading: Some(loading) });
+            let shown = matches!(payload.url().scheme(), "http" | "https") || is_newtab(payload.url());
+            let _ = app_load.emit_to("ui", "tab-update", TabUpdate { id, url: shown.then_some(url), title: None, loading: Some(loading) });
         })
         .on_document_title_changed(move |_, title| {
             let _ = app_title.emit_to("ui", "tab-update", TabUpdate { id, url: None, title: Some(title), loading: None });

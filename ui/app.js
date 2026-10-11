@@ -105,6 +105,7 @@ document.addEventListener('keydown', (e) => {
 listen('state', (e) => { state = e.payload; render(); });
 listen('tab-update', (e) => {
   const u = e.payload;
+  if (u.url && !/^https?:/.test(u.url) && !isNewTab(u.url)) u.url = null;
   const cur = info.get(u.id) || {};
   info.set(u.id, {
     url: u.url ?? cur.url,

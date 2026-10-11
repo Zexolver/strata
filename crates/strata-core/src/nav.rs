@@ -30,7 +30,8 @@ pub fn resolve_input(input: &str) -> String {
 pub fn is_allowed_navigation(url: &Url) -> bool {
     match url.scheme() {
         "http" | "https" => true,
-        "about" => url.as_str() == "about:blank",
+        "about" => matches!(url.as_str(), "about:blank" | "about:srcdoc"),
+        "blob" => true,
         _ => false,
     }
 }
@@ -54,5 +55,6 @@ mod tests {
         assert!(is_allowed_navigation(&Url::parse("https://a.com").unwrap()));
         assert!(!is_allowed_navigation(&Url::parse("javascript:1").unwrap()));
         assert!(!is_allowed_navigation(&Url::parse("file:///etc/passwd").unwrap()));
+        assert!(is_allowed_navigation(&Url::parse("about:srcdoc").unwrap()));
     }
 }
