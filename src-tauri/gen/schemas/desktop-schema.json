@@ -261,6 +261,12 @@
           "markdownDescription": "Enables the switch_tab command without any pre-configured scope."
         },
         {
+          "description": "Enables the update_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-settings",
+          "markdownDescription": "Enables the update_settings command without any pre-configured scope."
+        },
+        {
           "description": "Denies the add_profile command without any pre-configured scope.",
           "type": "string",
           "const": "deny-add-profile",
@@ -343,6 +349,12 @@
           "type": "string",
           "const": "deny-switch-tab",
           "markdownDescription": "Denies the switch_tab command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-settings",
+          "markdownDescription": "Denies the update_settings command without any pre-configured scope."
         },
         {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",

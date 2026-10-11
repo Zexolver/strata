@@ -6,7 +6,7 @@ let state = { settings: {}, profiles: [], tabs: [], active: null };
 const info = new Map(); // tab id -> { url, title, loading }
 let panelOpen = false;
 
-const isNewTab = (u) => !u || u.includes('newtab.html');
+const isNewTab = (u) => !u;
 const profileOf = (id) => state.profiles.find((p) => p.id === id);
 
 function render() {
@@ -42,6 +42,11 @@ function render() {
   sel.replaceChildren(...state.profiles.map((p) => new Option(p.name, p.id)));
   if (state.profiles.some((p) => p.id === prev)) sel.value = prev;
 
+  const eng = $('engine');
+  eng.replaceChildren(...state.engines.map(([id, name]) => new Option(name, id)), new Option('Custom…', 'custom'));
+  eng.value = s.search_engine;
+  $('customrow').classList.toggle('hidden', s.search_engine !== 'custom');
+  if (document.activeElement !== $('customsearch')) $('customsearch').value = s.custom_search;
   $('theme').value = s.theme;
   $('adblock').checked = !!s.adblock;
   $('profiles').checked = !!multi;
@@ -86,9 +91,12 @@ $('url').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { setPanel(false); invoke('navigate', { id: active(), input: $('url').value }); $('url').blur(); }
 });
 $('url').addEventListener('focus', () => $('url').select());
-$('theme').onchange = (e) => invoke('set_theme', { theme: e.target.value });
-$('adblock').onchange = (e) => invoke('set_adblock', { on: e.target.checked });
-$('profiles').onchange = (e) => invoke('set_profiles_enabled', { on: e.target.checked });
+const patch = (p) => invoke('update_settings', { patch: p }).catch((e) => ($('err2').textContent = String(e)));
+$('theme').onchange = (e) => patch({ theme: e.target.value });
+$('adblock').onchange = (e) => patch({ adblock: e.target.checked });
+$('profiles').onchange = (e) => patch({ profiles_enabled: e.target.checked });
+$('engine').onchange = (e) => patch({ search_engine: e.target.value });
+$('customsearch').onchange = (e) => patch({ custom_search: e.target.value });
 $('padd').onclick = () => {
   $('err').textContent = '';
   invoke('add_profile', { name: $('pname').value, color: $('pcolor').value, proxy: $('pproxy').value || null })
@@ -105,7 +113,7 @@ document.addEventListener('keydown', (e) => {
 listen('state', (e) => { state = e.payload; render(); });
 listen('tab-update', (e) => {
   const u = e.payload;
-  if (u.url && !/^https?:/.test(u.url) && !isNewTab(u.url)) u.url = null;
+  if (u.url && !/^https?:/.test(u.url)) u.url = null;
   const cur = info.get(u.id) || {};
   info.set(u.id, {
     url: u.url ?? cur.url,

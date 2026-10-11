@@ -23,6 +23,11 @@
   <h3>Appearance</h3>
   <div class="row"><span>Theme</span>
     <select id="theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></div>
+  <h3>Search</h3>
+  <div class="row"><span>Search engine<small>Used for the address bar and for new tabs</small></span><select id="engine"></select></div>
+  <div class="row hidden" id="customrow"><span>Custom search URL<small>Use %s where the search terms go</small></span>
+    <input id="customsearch" placeholder="https://example.org/search?q=%s" size="34"></div>
+  <div id="err2"></div>
   <h3>Privacy</h3>
   <div class="row"><span>Block ads &amp; trackers<small>Brave's adblock engine with EasyList, EasyPrivacy, uBlock and Brave lists</small></span>
     <input type="checkbox" id="adblock"></div>

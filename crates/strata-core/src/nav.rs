@@ -1,9 +1,37 @@
 use url::Url;
 
-pub const DEFAULT_SEARCH: &str = "https://duckduckgo.com/?q=";
+pub struct SearchEngine {
+    pub id: &'static str,
+    pub name: &'static str,
+    /// Query template; `%s` is replaced by the URL-encoded search terms.
+    pub template: &'static str,
+    pub home: &'static str,
+}
 
-/// Turn whatever was typed in the address bar into a URL to load.
-pub fn resolve_input(input: &str) -> String {
+pub const ENGINES: &[SearchEngine] = &[
+    SearchEngine { id: "duckduckgo", name: "DuckDuckGo", template: "https://duckduckgo.com/?q=%s", home: "https://duckduckgo.com/" },
+    SearchEngine { id: "brave", name: "Brave Search", template: "https://search.brave.com/search?q=%s", home: "https://search.brave.com/" },
+    SearchEngine { id: "startpage", name: "Startpage", template: "https://www.startpage.com/do/search?q=%s", home: "https://www.startpage.com/" },
+    SearchEngine { id: "mojeek", name: "Mojeek", template: "https://www.mojeek.com/search?q=%s", home: "https://www.mojeek.com/" },
+    SearchEngine { id: "ecosia", name: "Ecosia", template: "https://www.ecosia.org/search?q=%s", home: "https://www.ecosia.org/" },
+    SearchEngine { id: "google", name: "Google", template: "https://www.google.com/search?q=%s", home: "https://www.google.com/" },
+    SearchEngine { id: "bing", name: "Bing", template: "https://www.bing.com/search?q=%s", home: "https://www.bing.com/" },
+];
+
+pub const DEFAULT_ENGINE: &str = "duckduckgo";
+
+pub fn engine(id: &str) -> Option<&'static SearchEngine> {
+    ENGINES.iter().find(|e| e.id == id)
+}
+
+/// Is `template` a usable custom search URL (http(s) with a `%s` placeholder)?
+pub fn valid_template(template: &str) -> bool {
+    template.contains("%s")
+        && Url::parse(&template.replace("%s", "x")).map_or(false, |u| matches!(u.scheme(), "http" | "https") && u.host().is_some())
+}
+
+/// Turn whatever was typed in the address bar into a URL to load; plain text is searched with `template`.
+pub fn resolve_input(input: &str, template: &str) -> String {
     let s = input.trim();
     if s.is_empty() {
         return "about:blank".into();
@@ -23,7 +51,7 @@ pub fn resolve_input(input: &str) -> String {
             return u.into();
         }
     }
-    format!("{DEFAULT_SEARCH}{}", url::form_urlencoded::byte_serialize(s.as_bytes()).collect::<String>())
+    template.replace("%s", &url::form_urlencoded::byte_serialize(s.as_bytes()).collect::<String>())
 }
 
 /// Only web pages may be opened by the browser; blocks `javascript:`, `data:`, `file:` from links etc.
@@ -42,12 +70,21 @@ mod tests {
 
     #[test]
     fn urls_hosts_and_searches() {
-        assert_eq!(resolve_input("https://a.com/x"), "https://a.com/x");
-        assert_eq!(resolve_input("example.com"), "https://example.com/");
-        assert_eq!(resolve_input("localhost:8080"), "http://localhost:8080/");
-        assert_eq!(resolve_input("rust lang"), "https://duckduckgo.com/?q=rust+lang");
-        assert_eq!(resolve_input("javascript:alert(1)"), "https://duckduckgo.com/?q=javascript%3Aalert%281%29");
-        assert_eq!(resolve_input(""), "about:blank");
+        let t = engine(DEFAULT_ENGINE).unwrap().template;
+        assert_eq!(resolve_input("https://a.com/x", t), "https://a.com/x");
+        assert_eq!(resolve_input("example.com", t), "https://example.com/");
+        assert_eq!(resolve_input("localhost:8080", t), "http://localhost:8080/");
+        assert_eq!(resolve_input("rust lang", t), "https://duckduckgo.com/?q=rust+lang");
+        assert_eq!(resolve_input("javascript:alert(1)", t), "https://duckduckgo.com/?q=javascript%3Aalert%281%29");
+        assert_eq!(resolve_input("", t), "about:blank");
+    }
+
+    #[test]
+    fn templates() {
+        assert!(valid_template("https://x.org/s?q=%s"));
+        assert!(!valid_template("https://x.org/s"));
+        assert!(!valid_template("javascript:%s"));
+        assert!(ENGINES.iter().all(|e| valid_template(e.template)));
     }
 
     #[test]

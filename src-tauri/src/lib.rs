@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use strata_core::blocker::Blocker;
 use strata_core::nav::{is_allowed_navigation, resolve_input};
 use strata_core::profiles::{Profile, ProfileStore, DEFAULT_ID};
-use strata_core::settings::{Settings, Theme};
+use strata_core::settings::Settings;
 use tauri::webview::{PageLoadEvent, WebviewBuilder};
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewUrl, WindowEvent,
@@ -15,7 +15,6 @@ use tauri::{
 
 /// Height of the tab strip plus toolbar, in logical pixels.
 const CHROME_H: f64 = 88.0;
-const NEWTAB: &str = "newtab.html";
 
 struct Tab {
     id: u32,
@@ -47,6 +46,7 @@ struct TabInfo {
 #[derive(Serialize, Clone)]
 struct StateDto {
     settings: Settings,
+    engines: Vec<(&'static str, &'static str)>,
     profiles: Vec<Profile>,
     tabs: Vec<TabInfo>,
     active: Option<u32>,
@@ -60,10 +60,6 @@ struct TabUpdate {
     loading: Option<bool>,
 }
 
-fn is_newtab(u: &tauri::Url) -> bool {
-    u.path().ends_with(NEWTAB)
-}
-
 fn label(id: u32) -> String {
     format!("tab-{id}")
 }
@@ -72,6 +68,7 @@ fn snapshot(st: &AppState) -> StateDto {
     let tabs = st.tabs.lock().unwrap();
     StateDto {
         settings: st.settings.lock().unwrap().clone(),
+        engines: strata_core::nav::ENGINES.iter().map(|e| (e.id, e.name)).collect(),
         profiles: st.profiles.lock().unwrap().profiles.clone(),
         tabs: tabs.list.iter().map(|t| TabInfo { id: t.id, profile: t.profile.clone() }).collect(),
         active: tabs.active,
@@ -135,10 +132,15 @@ fn open_tab(app: &AppHandle, input: Option<String>, profile: Option<String>) -> 
         t.next += 1;
         t.next
     };
-    let url = match input.as_deref().map(resolve_input) {
-        Some(u) if u != "about:blank" => WebviewUrl::External(u.parse().map_err(|_| "bad url")?),
-        _ => WebviewUrl::App(NEWTAB.into()),
+    let (template, home) = {
+        let s = st.settings.lock().unwrap();
+        (s.search_template(), s.home_url())
     };
+    let target = match input.as_deref().map(|i| resolve_input(i, &template)) {
+        Some(u) if u != "about:blank" => u,
+        _ => home,
+    };
+    let url = WebviewUrl::External(target.parse().map_err(|_| "bad url")?);
 
     let (app_load, app_title) = (app.clone(), app.clone());
     let (blocker_nav, blocker_load) = (st.blocker.clone(), st.blocker.clone());
@@ -167,7 +169,7 @@ fn open_tab(app: &AppHandle, input: Option<String>, profile: Option<String>) -> 
                     let _ = wv.eval(js);
                 }
             }
-            let shown = matches!(payload.url().scheme(), "http" | "https") || is_newtab(payload.url());
+            let shown = matches!(payload.url().scheme(), "http" | "https");
             let _ = app_load.emit_to("ui", "tab-update", TabUpdate { id, url: shown.then_some(url), title: None, loading: Some(loading) });
         })
         .on_document_title_changed(move |_, title| {
@@ -255,8 +257,9 @@ fn switch_tab(app: AppHandle, st: State<AppState>, id: u32) {
 }
 
 #[tauri::command]
-fn navigate(app: AppHandle, id: u32, input: String) -> Result<(), String> {
-    let url = resolve_input(&input);
+fn navigate(app: AppHandle, st: State<AppState>, id: u32, input: String) -> Result<(), String> {
+    let template = st.settings.lock().unwrap().search_template();
+    let url = resolve_input(&input, &template);
     let wv = tab_webview(&app, id)?;
     let target: tauri::Url = if url == "about:blank" {
         return Ok(());
@@ -285,26 +288,29 @@ fn save_settings(st: &AppState) {
     let _ = st.settings.lock().unwrap().save(&st.dir.join("settings.json"));
 }
 
+/// Merge a partial settings object into the current settings. Invalid values are rejected.
 #[tauri::command]
-fn set_theme(app: AppHandle, st: State<AppState>, theme: Theme) {
-    st.settings.lock().unwrap().theme = theme;
-    save_settings(&st);
-    notify(&app);
-}
-
-#[tauri::command]
-fn set_adblock(app: AppHandle, st: State<AppState>, on: bool) {
-    st.settings.lock().unwrap().adblock = on;
+fn update_settings(app: AppHandle, st: State<AppState>, patch: serde_json::Value) -> Result<(), String> {
+    {
+        let mut cur = st.settings.lock().unwrap();
+        let mut value = serde_json::to_value(&*cur).map_err(|e| e.to_string())?;
+        let (Some(obj), Some(patch)) = (value.as_object_mut(), patch.as_object()) else { return Err("bad patch".into()) };
+        for (k, v) in patch {
+            if !obj.contains_key(k) {
+                return Err(format!("unknown setting {k}"));
+            }
+            obj.insert(k.clone(), v.clone());
+        }
+        let next: Settings = serde_json::from_value(value).map_err(|e| e.to_string())?;
+        if next.search_engine != "custom" && strata_core::nav::engine(&next.search_engine).is_none() {
+            return Err("unknown search engine".into());
+        }
+        *cur = next;
+    }
     save_settings(&st);
     native_filter::apply_all(&app);
     notify(&app);
-}
-
-#[tauri::command]
-fn set_profiles_enabled(app: AppHandle, st: State<AppState>, on: bool) {
-    st.settings.lock().unwrap().profiles_enabled = on;
-    save_settings(&st);
-    notify(&app);
+    Ok(())
 }
 
 #[tauri::command]
@@ -344,7 +350,7 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             get_state, new_tab, close_tab, switch_tab, navigate, history_back, history_forward,
-            reload, set_theme, set_adblock, set_profiles_enabled, add_profile, remove_profile,
+            reload, update_settings, add_profile, remove_profile,
             set_overlay
         ])
         .setup(|app| {
