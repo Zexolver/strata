@@ -1,4 +1,5 @@
 mod filters;
+mod native_filter;
 
 use serde::Serialize;
 use std::path::PathBuf;
@@ -193,6 +194,7 @@ fn open_tab(app: &AppHandle, input: Option<String>, profile: Option<String>) -> 
         t.overlay = false;
     }
     layout(app);
+    native_filter::apply_tab(app, id);
     notify(app);
     Ok(id)
 }
@@ -290,6 +292,7 @@ fn set_theme(app: AppHandle, st: State<AppState>, theme: Theme) {
 fn set_adblock(app: AppHandle, st: State<AppState>, on: bool) {
     st.settings.lock().unwrap().adblock = on;
     save_settings(&st);
+    native_filter::apply_all(&app);
     notify(&app);
 }
 
@@ -343,7 +346,8 @@ pub fn run() {
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             let blocker = Arc::new(Blocker::new());
-            filters::spawn_updater(blocker.clone(), dir.join("filters"));
+            native_filter::load_cached(app.handle(), &dir.join("filters").join("webkit-store"));
+            filters::spawn_updater(app.handle().clone(), blocker.clone(), dir.join("filters"));
             app.manage(AppState {
                 settings: Mutex::new(Settings::load(&dir.join("settings.json"))),
                 profiles: Mutex::new(ProfileStore::load(&dir.join("profiles.json"))),

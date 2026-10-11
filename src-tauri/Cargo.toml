@@ -21,7 +21,7 @@ ureq = { version = "3", default-features = false, features = ["rustls"], optiona
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
-webkit2gtk = "2"
+webkit2gtk = { version = "2", features = ["v2_24"] }
 
 [features]
 default = ["updater", "custom-protocol"]
