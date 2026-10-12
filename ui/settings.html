@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Settings</title>
+<link rel="stylesheet" href="style.css"><link rel="stylesheet" href="settings.css"></head>
+<body class="settings">
+<aside id="side"></aside>
+<main>
+<section id="appearance"><h2>Appearance</h2>
+  <div class="row"><span>Theme</span>
+    <select id="theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></div>
+</section>
+<section id="search" class="hidden"><h2>Search</h2>
+  <p class="muted">Used for the address bar and the new tab page.</p>
+  <div id="engines"></div>
+  <div class="row hidden" id="customrow"><span>Custom search URL<small>Use %s where the search terms go</small></span>
+    <input id="customsearch" placeholder="https://example.org/search?q=%s" size="34"></div>
+</section>
+<section id="privacy" class="hidden"><h2>Privacy &amp; security</h2>
+  <div class="row"><span>Block ads &amp; trackers<small>Brave's adblock engine with EasyList, EasyPrivacy, uBlock and Brave lists</small></span>
+    <input type="checkbox" id="adblock"></div>
+</section>
+<section id="profiles" class="hidden"><h2>Profiles <span class="badge">experimental</span></h2>
+  <div class="row"><span>Isolated profiles<small>Each profile has its own cookies, storage and cache, and can use its own proxy. Sites cannot tell the profiles share a browser.</small></span>
+    <input type="checkbox" id="profilesOn"></div>
+  <div id="profilebox" class="hidden">
+    <div id="profilelist"></div>
+    <div class="form">
+      <input id="pname" placeholder="Name">
+      <input id="pcolor" type="color" value="#7aa2f7">
+      <input id="pproxy" placeholder="Proxy (optional): socks5://127.0.0.1:9050">
+      <button id="padd">Add profile</button>
+    </div>
+  </div>
+</section>
+<div id="err"></div>
+</main>
+<script src="settings.js"></script>
+</body></html>

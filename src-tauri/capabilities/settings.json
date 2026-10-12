@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "settings",
+  "description": "Bundled settings page (a tab). Capabilities only reach app-local pages, never websites opened in other tabs.",
+  "windows": ["main"],
+  "webviews": ["tab-*"],
+  "permissions": ["allow-get-state", "allow-update-settings", "allow-add-profile", "allow-remove-profile"]
+}

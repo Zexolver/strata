@@ -1,4 +1,5 @@
 const cfg = window.__STRATA || { template: 'https://duckduckgo.com/?q=%s', engine: '' };
+document.getElementById('name').textContent = cfg.name || '';
 const q = document.getElementById('q');
 q.placeholder = cfg.engine ? 'Search with ' + cfg.engine + ' or enter address' : 'Search or enter address';
 document.getElementById('f').onsubmit = (e) => {
@@ -16,6 +17,7 @@ for (const [n, u] of sites) {
   a.href = u;
   const b = document.createElement('b');
   b.textContent = n[0];
+  b.style.cssText = `background:hsl(${[...n].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7)} 55% 45%);color:#fff;border:0`;
   a.append(b, n);
   nav.append(a);
 }

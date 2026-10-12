@@ -2,7 +2,7 @@
 
 fn main() {
     if std::env::args().any(|a| a == "--version") {
-        println!("strata {}", env!("CARGO_PKG_VERSION"));
+        println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
         return;
     }
     strata_lib::run()

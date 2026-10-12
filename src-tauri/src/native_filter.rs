@@ -23,6 +23,7 @@ mod imp {
     struct Pending {
         app: AppHandle,
         store: *mut ffi::WebKitUserContentFilterStore,
+        _source: Option<glib::Bytes>, // WebKit may read the rules on a worker thread until the callback runs
     }
 
     unsafe extern "C" fn saved(
@@ -34,9 +35,9 @@ mod imp {
         let mut err: *mut glib::ffi::GError = std::ptr::null_mut();
         let filter = ffi::webkit_user_content_filter_store_save_finish(p.store, res, &mut err);
         if filter.is_null() && !err.is_null() {
-            eprintln!("strata: content filter failed: {}", std::ffi::CStr::from_ptr((*err).message).to_string_lossy());
+            eprintln!("content filter failed: {}", std::ffi::CStr::from_ptr((*err).message).to_string_lossy());
         } else {
-            eprintln!("strata: content filter installed");
+            eprintln!("content filter installed");
         }
         glib::gobject_ffi::g_object_unref(p.store as *mut _);
         if !filter.is_null() {
@@ -71,25 +72,29 @@ mod imp {
 
     /// Load the filter compiled by a previous run so blocking is active quickly at start-up.
     pub fn load_cached(app: &AppHandle, storage: &std::path::Path) {
-        let (Ok(path), Ok(id)) = (CString::new(storage.to_string_lossy().as_bytes()), CString::new("strata")) else { return };
+        let (Ok(path), Ok(id)) = (CString::new(storage.to_string_lossy().as_bytes()), CString::new("content-filter")) else { return };
         unsafe {
             let store = ffi::webkit_user_content_filter_store_new(path.as_ptr());
-            let data = Box::into_raw(Box::new(Pending { app: app.clone(), store }));
+            let data = Box::into_raw(Box::new(Pending { app: app.clone(), store, _source: None }));
             ffi::webkit_user_content_filter_store_load(store, id.as_ptr(), std::ptr::null_mut(), Some(loaded), data as *mut c_void);
         }
     }
 
     /// Compile `json` into a WebKit content filter (must run on the main thread).
     pub fn install(app: &AppHandle, json: String, storage: &std::path::Path) {
-        let (Ok(path), Ok(id)) = (CString::new(storage.to_string_lossy().as_bytes()), CString::new("strata")) else { return };
+        if !app.state::<crate::AppState>().settings.lock().unwrap().adblock {
+            return;
+        }
+        let (Ok(path), Ok(id)) = (CString::new(storage.to_string_lossy().as_bytes()), CString::new("content-filter")) else { return };
         unsafe {
             let store = ffi::webkit_user_content_filter_store_new(path.as_ptr());
             let bytes = glib::Bytes::from_owned(json.into_bytes());
-            let data = Box::into_raw(Box::new(Pending { app: app.clone(), store }));
+            let src: *mut glib::ffi::GBytes = bytes.to_glib_none().0;
+            let data = Box::into_raw(Box::new(Pending { app: app.clone(), store, _source: Some(bytes) }));
             ffi::webkit_user_content_filter_store_save(
                 store,
                 id.as_ptr(),
-                bytes.to_glib_none().0,
+                src,
                 std::ptr::null_mut(),
                 Some(saved),
                 data as *mut c_void,

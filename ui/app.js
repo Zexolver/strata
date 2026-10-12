@@ -4,13 +4,13 @@ const $ = (id) => document.getElementById(id);
 
 let state = { settings: {}, profiles: [], tabs: [], active: null };
 const info = new Map(); // tab id -> { url, title, loading }
-let panelOpen = false;
 
 const isNewTab = (u) => !u;
 const profileOf = (id) => state.profiles.find((p) => p.id === id);
 
 function render() {
   const s = state.settings;
+  document.title = state.app_name || '';
   document.documentElement.dataset.theme = s.theme === 'system' ? '' : s.theme;
   const multi = s.profiles_enabled;
 
@@ -19,7 +19,7 @@ function render() {
   for (const t of state.tabs) {
     const i = info.get(t.id) || {};
     const el = document.createElement('div');
-    el.className = 'tab' + (t.id === state.active && !panelOpen ? ' active' : '');
+    el.className = 'tab' + (t.id === state.active ? ' active' : '');
     if (multi) el.style.borderTopColor = profileOf(t.profile)?.color || 'transparent';
     const title = document.createElement('span');
     title.className = 'title';
@@ -29,9 +29,12 @@ function render() {
     x.className = 'x';
     x.textContent = '×';
     x.onclick = (e) => { e.stopPropagation(); invoke('close_tab', { id: t.id }); };
-    el.onclick = () => { setPanel(false); invoke('switch_tab', { id: t.id }); };
-    el.append(title, x);
-    if (i.loading) el.prepend(el.querySelector('.spin'));
+    el.onclick = () => { invoke('switch_tab', { id: t.id }); };
+    const ico = document.createElement('img');
+    ico.className = 'ico' + (i.icon ? '' : ' hidden');
+    if (i.icon) ico.src = i.icon;
+    el.append(ico, title, x);
+    if (i.loading) el.querySelector('.ico').replaceWith(el.querySelector('.spin'));
     tabs.append(el);
   }
 
@@ -43,68 +46,18 @@ function render() {
   const prev = sel.value;
   sel.replaceChildren(...state.profiles.map((p) => new Option(p.name, p.id)));
   if (state.profiles.some((p) => p.id === prev)) sel.value = prev;
-
-  const eng = $('engine');
-  eng.replaceChildren(...state.engines.map(([id, name]) => new Option(name, id)), new Option('Custom…', 'custom'));
-  eng.value = s.search_engine;
-  $('customrow').classList.toggle('hidden', s.search_engine !== 'custom');
-  if (document.activeElement !== $('customsearch')) $('customsearch').value = s.custom_search;
-  $('theme').value = s.theme;
-  $('adblock').checked = !!s.adblock;
-  $('profiles').checked = !!multi;
-  $('profilebox').classList.toggle('hidden', !multi);
-  const list = $('profilelist');
-  list.replaceChildren();
-  for (const p of state.profiles) {
-    const row = document.createElement('div');
-    row.className = 'row';
-    const name = document.createElement('span');
-    name.textContent = p.name;
-    name.style.borderLeft = `4px solid ${p.color}`;
-    name.style.paddingLeft = '8px';
-    if (p.proxy) { const b = document.createElement('span'); b.className = 'badge'; b.textContent = p.proxy; name.append(b); }
-    row.append(name);
-    if (p.id !== 'default') {
-      const del = document.createElement('button');
-      del.textContent = 'Delete';
-      del.onclick = () => confirm(`Delete "${p.name}" and all its cookies and data?`) && invoke('remove_profile', { id: p.id }).catch(showErr);
-      row.append(del);
-    }
-    list.append(row);
-  }
-}
-
-function showErr(e) { $('err').textContent = String(e); }
-
-function setPanel(on) {
-  panelOpen = on;
-  $('panel').classList.toggle('hidden', !on);
-  invoke('set_overlay', { on });
-  render();
 }
 
 const active = () => state.active;
-$('add').onclick = () => { setPanel(false); invoke('new_tab', { profile: $('newprofile').value || null }); $('url').focus(); };
+$('add').onclick = () => { invoke('new_tab', { profile: $('newprofile').value || null }); $('url').focus(); };
 $('back').onclick = () => invoke('history_back', { id: active() });
 $('fwd').onclick = () => invoke('history_forward', { id: active() });
 $('reload').onclick = () => invoke('reload', { id: active() });
-$('gear').onclick = () => setPanel(!panelOpen);
+$('gear').onclick = () => invoke('open_settings');
 $('url').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') { setPanel(false); invoke('navigate', { id: active(), input: $('url').value }); $('url').blur(); }
+  if (e.key === 'Enter') { invoke('navigate', { id: active(), input: $('url').value }); $('url').blur(); }
 });
 $('url').addEventListener('focus', () => $('url').select());
-const patch = (p) => invoke('update_settings', { patch: p }).catch((e) => ($('err2').textContent = String(e)));
-$('theme').onchange = (e) => patch({ theme: e.target.value });
-$('adblock').onchange = (e) => patch({ adblock: e.target.checked });
-$('profiles').onchange = (e) => patch({ profiles_enabled: e.target.checked });
-$('engine').onchange = (e) => patch({ search_engine: e.target.value });
-$('customsearch').onchange = (e) => patch({ custom_search: e.target.value });
-$('padd').onclick = () => {
-  $('err').textContent = '';
-  invoke('add_profile', { name: $('pname').value, color: $('pcolor').value, proxy: $('pproxy').value || null })
-    .then(() => { $('pname').value = ''; $('pproxy').value = ''; })
-    .catch(showErr);
-};
 document.addEventListener('keydown', (e) => {
   if (!(e.ctrlKey || e.metaKey)) return;
   if (e.key === 'l') { e.preventDefault(); $('url').focus(); }
@@ -121,6 +74,7 @@ listen('tab-update', (e) => {
     url: u.url ?? cur.url,
     title: u.title ?? cur.title,
     loading: u.loading ?? cur.loading,
+    icon: u.url && u.url !== cur.url ? u.icon ?? null : u.icon ?? cur.icon,
   });
   render();
 });

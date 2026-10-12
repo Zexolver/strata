@@ -1,0 +1,9 @@
+body.settings{display:flex;overflow:auto;user-select:text}
+#side{width:200px;flex:none;padding:24px 12px;border-right:1px solid var(--line);position:sticky;top:0;height:100vh}
+#side button{display:block;width:100%;text-align:left;padding:8px 12px;margin-bottom:2px}
+#side button.on{background:color-mix(in srgb,var(--accent) 22%,transparent)}
+main{flex:1;max-width:680px;padding:24px 32px}
+.muted{color:var(--muted)}
+.eng{display:flex;align-items:center;gap:12px;padding:9px 6px;border-bottom:1px solid var(--line);cursor:pointer}
+.eng input{margin:0}
+.mono{display:inline-flex;width:28px;height:28px;border-radius:8px;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:14px}

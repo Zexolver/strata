@@ -219,6 +219,12 @@
           "markdownDescription": "Enables the new_tab command without any pre-configured scope."
         },
         {
+          "description": "Enables the open_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-settings",
+          "markdownDescription": "Enables the open_settings command without any pre-configured scope."
+        },
+        {
           "description": "Enables the reload command without any pre-configured scope.",
           "type": "string",
           "const": "allow-reload",
@@ -307,6 +313,12 @@
           "type": "string",
           "const": "deny-new-tab",
           "markdownDescription": "Denies the new_tab command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-settings",
+          "markdownDescription": "Denies the open_settings command without any pre-configured scope."
         },
         {
           "description": "Denies the reload command without any pre-configured scope.",

@@ -1,4 +1,5 @@
 mod filters;
+mod favicon;
 mod native_filter;
 
 use serde::Serialize;
@@ -27,9 +28,11 @@ struct Tabs {
     active: Option<u32>,
     next: u32,
     overlay: bool,
+    settings: Option<u32>,
 }
 
 struct AppState {
+    name: String,
     dir: PathBuf,
     settings: Mutex<Settings>,
     profiles: Mutex<ProfileStore>,
@@ -45,6 +48,7 @@ struct TabInfo {
 
 #[derive(Serialize, Clone)]
 struct StateDto {
+    app_name: String,
     settings: Settings,
     engines: Vec<(&'static str, &'static str)>,
     profiles: Vec<Profile>,
@@ -58,6 +62,7 @@ struct TabUpdate {
     url: Option<String>,
     title: Option<String>,
     loading: Option<bool>,
+    icon: Option<String>,
 }
 
 fn label(id: u32) -> String {
@@ -67,6 +72,7 @@ fn label(id: u32) -> String {
 fn snapshot(st: &AppState) -> StateDto {
     let tabs = st.tabs.lock().unwrap();
     StateDto {
+        app_name: st.name.clone(),
         settings: st.settings.lock().unwrap().clone(),
         engines: strata_core::nav::ENGINES.iter().map(|e| (e.id, e.name)).collect(),
         profiles: st.profiles.lock().unwrap().profiles.clone(),
@@ -122,7 +128,16 @@ fn layout(app: &AppHandle) {
     }
 }
 
+fn app_name(app: &AppHandle) -> String {
+    app.config().product_name.clone().unwrap_or_default()
+}
+
 fn open_tab(app: &AppHandle, input: Option<String>, profile: Option<String>) -> Result<u32, String> {
+    open_page(app, input, profile, None)
+}
+
+/// `page`: a bundled page (e.g. "settings.html") to show instead of the new-tab page or a website.
+fn open_page(app: &AppHandle, input: Option<String>, profile: Option<String>, page: Option<&str>) -> Result<u32, String> {
     let st = app.state::<AppState>();
     let profiles_on = st.settings.lock().unwrap().profiles_enabled;
     let profile_id = if profiles_on { profile.unwrap_or_else(|| DEFAULT_ID.into()) } else { DEFAULT_ID.into() };
@@ -138,15 +153,16 @@ fn open_tab(app: &AppHandle, input: Option<String>, profile: Option<String>) -> 
     };
     let _ = home;
     let target = input.as_deref().map(|i| resolve_input(i, &template)).filter(|u| u != "about:blank");
-    let url = match &target {
-        Some(u) => WebviewUrl::External(u.parse().map_err(|_| "bad url")?),
-        None => WebviewUrl::App("newtab.html".into()),
+    let url = match (&target, page) {
+        (_, Some(p)) => WebviewUrl::App(p.into()),
+        (Some(u), None) => WebviewUrl::External(u.parse().map_err(|_| "bad url")?),
+        (None, None) => WebviewUrl::App("newtab.html".into()),
     };
     let engine_name = {
         let s = st.settings.lock().unwrap();
         if s.search_engine == "custom" { "your search engine".to_string() } else { strata_core::nav::engine(&s.search_engine).map(|e| e.name.to_string()).unwrap_or_default() }
     };
-    let newtab_init = format!("window.__STRATA={};", serde_json::json!({"template": template, "engine": engine_name}));
+    let newtab_init = format!("window.__STRATA={};", serde_json::json!({"template": template, "engine": engine_name, "name": app_name(app)}));
 
     let (app_load, app_title) = (app.clone(), app.clone());
     let (blocker_nav, blocker_load) = (st.blocker.clone(), st.blocker.clone());
@@ -176,10 +192,10 @@ fn open_tab(app: &AppHandle, input: Option<String>, profile: Option<String>) -> 
                 }
             }
             let shown = matches!(payload.url().scheme(), "http" | "https");
-            let _ = app_load.emit_to("ui", "tab-update", TabUpdate { id, url: shown.then_some(url), title: None, loading: Some(loading) });
+            let _ = app_load.emit_to("ui", "tab-update", TabUpdate { id, url: shown.then_some(url), title: None, loading: Some(loading), icon: None });
         })
         .on_document_title_changed(move |_, title| {
-            let _ = app_title.emit_to("ui", "tab-update", TabUpdate { id, url: None, title: Some(title), loading: None });
+            let _ = app_title.emit_to("ui", "tab-update", TabUpdate { id, url: None, title: Some(title), loading: None, icon: None });
         })
         .on_new_window({
             let app = app.clone();
@@ -191,7 +207,7 @@ fn open_tab(app: &AppHandle, input: Option<String>, profile: Option<String>) -> 
                 tauri::webview::NewWindowResponse::Deny
             }
         });
-    if target.is_none() {
+    if target.is_none() && page.is_none() {
         builder = builder.initialization_script(newtab_init);
     }
     if let Some(p) = prof.proxy.as_deref().and_then(|p| p.parse().ok()) {
@@ -205,11 +221,15 @@ fn open_tab(app: &AppHandle, input: Option<String>, profile: Option<String>) -> 
     {
         let mut t = st.tabs.lock().unwrap();
         t.list.push(Tab { id, profile: prof.id });
+        if page == Some("settings.html") {
+            t.settings = Some(id);
+        }
         t.active = Some(id);
         t.overlay = false;
     }
     layout(app);
     native_filter::apply_tab(app, id);
+    favicon::watch(app, id);
     notify(app);
     Ok(id)
 }
@@ -237,6 +257,9 @@ fn close_tab(app: AppHandle, st: State<AppState>, id: u32) -> Result<(), String>
         let mut t = st.tabs.lock().unwrap();
         let idx = t.list.iter().position(|x| x.id == id);
         t.list.retain(|x| x.id != id);
+        if t.settings == Some(id) {
+            t.settings = None;
+        }
         if t.active == Some(id) {
             let next = idx.map(|i| i.min(t.list.len().saturating_sub(1)));
             t.active = next.and_then(|i| t.list.get(i)).map(|x| x.id);
@@ -248,6 +271,18 @@ fn close_tab(app: AppHandle, st: State<AppState>, id: u32) -> Result<(), String>
     } else {
         layout(&app);
         notify(&app);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn open_settings(app: AppHandle, st: State<AppState>) -> Result<(), String> {
+    let existing = st.tabs.lock().unwrap().settings;
+    match existing {
+        Some(id) => switch_tab(app, st, id),
+        None => {
+            open_page(&app, None, None, Some("settings.html"))?;
+        }
     }
     Ok(())
 }
@@ -358,7 +393,7 @@ fn set_overlay(app: AppHandle, st: State<AppState>, on: bool) {
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            get_state, new_tab, close_tab, switch_tab, navigate, history_back, history_forward,
+            get_state, open_settings, new_tab, close_tab, switch_tab, navigate, history_back, history_forward,
             reload, update_settings, add_profile, remove_profile,
             set_overlay
         ])
@@ -368,6 +403,7 @@ pub fn run() {
             native_filter::load_cached(app.handle(), &dir.join("filters").join("webkit-store"));
             filters::spawn_updater(app.handle().clone(), blocker.clone(), dir.join("filters"));
             app.manage(AppState {
+                name: app_name(app.handle()),
                 settings: Mutex::new(Settings::load(&dir.join("settings.json"))),
                 profiles: Mutex::new(ProfileStore::load(&dir.join("profiles.json"))),
                 tabs: Mutex::new(Tabs::default()),
@@ -376,7 +412,7 @@ pub fn run() {
             });
 
             let window = tauri::window::WindowBuilder::new(app, "main")
-                .title("Strata")
+                .title(app_name(app.handle()))
                 .inner_size(1200.0, 800.0)
                 .min_inner_size(360.0, 300.0)
                 .build()?;
@@ -409,5 +445,5 @@ pub fn run() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running Strata");
+        .expect("error while running the application");
 }
