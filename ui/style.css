@@ -25,3 +25,4 @@ h3 { margin:22px 0 8px; font-size:13px; text-transform:uppercase; color:var(--mu
 .spin{flex:none;width:12px;height:12px;border:2px solid var(--fg,#888);border-top-color:transparent;border-radius:50%;opacity:.7;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 .tab .ico{flex:none;width:16px;height:16px;border-radius:3px}
+.tab.discarded:not(.active){opacity:.55}

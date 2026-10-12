@@ -1,6 +1,6 @@
 const { invoke } = window.__TAURI__.core;
 const $ = (id) => document.getElementById(id);
-const SECTIONS = [['appearance', 'Appearance'], ['search', 'Search'], ['privacy', 'Privacy & security'], ['profiles', 'Profiles']];
+const SECTIONS = [['appearance', 'Appearance'], ['search', 'Search'], ['privacy', 'Privacy & security'], ['performance', 'Performance'], ['profiles', 'Profiles']];
 let state;
 
 const hue = (s) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
@@ -24,6 +24,7 @@ function render() {
   const s = state.settings;
   document.documentElement.dataset.theme = s.theme === 'system' ? '' : s.theme;
   $('theme').value = s.theme;
+  $('discard').value = String(s.discard_minutes);
   $('adblock').checked = !!s.adblock;
   $('profilesOn').checked = !!s.profiles_enabled;
   $('profilebox').classList.toggle('hidden', !s.profiles_enabled);
@@ -76,6 +77,7 @@ for (const [id, label] of SECTIONS) {
   $('side').append(b);
 }
 $('theme').onchange = (e) => patch({ theme: e.target.value });
+$('discard').onchange = (e) => patch({ discard_minutes: Number(e.target.value) });
 $('adblock').onchange = (e) => patch({ adblock: e.target.checked });
 $('profilesOn').onchange = (e) => patch({ profiles_enabled: e.target.checked });
 $('customsearch').onchange = (e) => patch({ custom_search: e.target.value });

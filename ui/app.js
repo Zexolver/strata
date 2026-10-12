@@ -19,7 +19,7 @@ function render() {
   for (const t of state.tabs) {
     const i = info.get(t.id) || {};
     const el = document.createElement('div');
-    el.className = 'tab' + (t.id === state.active ? ' active' : '');
+    el.className = 'tab' + (t.id === state.active ? ' active' : '') + (t.discarded ? ' discarded' : '');
     if (multi) el.style.borderTopColor = profileOf(t.profile)?.color || 'transparent';
     const title = document.createElement('span');
     title.className = 'title';

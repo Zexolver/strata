@@ -1,6 +1,6 @@
 [package]
 name = "strata"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 license = "MPL-2.0"
 description = "A lightweight, secure browser with isolated profiles"
@@ -22,7 +22,7 @@ ureq = { version = "3", default-features = false, features = ["rustls"], optiona
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
 cairo-rs = { version = "0.18", features = ["png"] }
-webkit2gtk = { version = "2", features = ["v2_24"] }
+webkit2gtk = { version = "2", features = ["v2_34"] }
 
 [features]
 default = ["updater", "custom-protocol"]

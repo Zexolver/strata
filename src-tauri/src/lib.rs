@@ -1,5 +1,6 @@
 mod filters;
 mod favicon;
+mod memory;
 mod native_filter;
 
 use serde::Serialize;
@@ -20,6 +21,9 @@ const CHROME_H: f64 = 88.0;
 struct Tab {
     id: u32,
     profile: String,
+    url: Option<String>,
+    last_active: std::time::Instant,
+    discarded: bool,
 }
 
 #[derive(Default)]
@@ -44,6 +48,7 @@ struct AppState {
 struct TabInfo {
     id: u32,
     profile: String,
+    discarded: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -76,7 +81,7 @@ fn snapshot(st: &AppState) -> StateDto {
         settings: st.settings.lock().unwrap().clone(),
         engines: strata_core::nav::ENGINES.iter().map(|e| (e.id, e.name)).collect(),
         profiles: st.profiles.lock().unwrap().profiles.clone(),
-        tabs: tabs.list.iter().map(|t| TabInfo { id: t.id, profile: t.profile.clone() }).collect(),
+        tabs: tabs.list.iter().map(|t| TabInfo { id: t.id, profile: t.profile.clone(), discarded: t.discarded }).collect(),
         active: tabs.active,
     }
 }
@@ -133,20 +138,21 @@ fn app_name(app: &AppHandle) -> String {
 }
 
 fn open_tab(app: &AppHandle, input: Option<String>, profile: Option<String>) -> Result<u32, String> {
-    open_page(app, input, profile, None)
+    open_page(app, input, profile, None, None)
 }
 
 /// `page`: a bundled page (e.g. "settings.html") to show instead of the new-tab page or a website.
-fn open_page(app: &AppHandle, input: Option<String>, profile: Option<String>, page: Option<&str>) -> Result<u32, String> {
+/// `existing`: re-create the webview of a discarded tab under its old id.
+fn open_page(app: &AppHandle, input: Option<String>, profile: Option<String>, page: Option<&str>, existing: Option<u32>) -> Result<u32, String> {
     let st = app.state::<AppState>();
     let profiles_on = st.settings.lock().unwrap().profiles_enabled;
     let profile_id = if profiles_on { profile.unwrap_or_else(|| DEFAULT_ID.into()) } else { DEFAULT_ID.into() };
     let prof = st.profiles.lock().unwrap().get(&profile_id).cloned().ok_or("unknown profile")?;
-    let id = {
+    let id = existing.unwrap_or_else(|| {
         let mut t = st.tabs.lock().unwrap();
         t.next += 1;
         t.next
-    };
+    });
     let (template, home) = {
         let s = st.settings.lock().unwrap();
         (s.search_template(), s.home_url())
@@ -192,6 +198,11 @@ fn open_page(app: &AppHandle, input: Option<String>, profile: Option<String>, pa
                 }
             }
             let shown = matches!(payload.url().scheme(), "http" | "https");
+            if shown {
+                if let Some(t) = app_load.state::<AppState>().tabs.lock().unwrap().list.iter_mut().find(|t| t.id == id) {
+                    t.url = Some(url.clone());
+                }
+            }
             let _ = app_load.emit_to("ui", "tab-update", TabUpdate { id, url: shown.then_some(url), title: None, loading: Some(loading), icon: None });
         })
         .on_document_title_changed(move |_, title| {
@@ -220,7 +231,19 @@ fn open_page(app: &AppHandle, input: Option<String>, profile: Option<String>, pa
         .map_err(|e| e.to_string())?;
     {
         let mut t = st.tabs.lock().unwrap();
-        t.list.push(Tab { id, profile: prof.id });
+        let now = std::time::Instant::now();
+        if let Some(prev) = t.active {
+            if let Some(p) = t.list.iter_mut().find(|x| x.id == prev) {
+                p.last_active = now;
+            }
+        }
+        match t.list.iter_mut().find(|x| x.id == id) {
+            Some(tab) => {
+                tab.discarded = false;
+                tab.last_active = now;
+            }
+            None => t.list.push(Tab { id, profile: prof.id, url: None, last_active: now, discarded: false }),
+        }
         if page == Some("settings.html") {
             t.settings = Some(id);
         }
@@ -230,6 +253,7 @@ fn open_page(app: &AppHandle, input: Option<String>, profile: Option<String>, pa
     layout(app);
     native_filter::apply_tab(app, id);
     favicon::watch(app, id);
+    memory::tune(app, id);
     notify(app);
     Ok(id)
 }
@@ -281,7 +305,7 @@ fn open_settings(app: AppHandle, st: State<AppState>) -> Result<(), String> {
     match existing {
         Some(id) => switch_tab(app, st, id),
         None => {
-            open_page(&app, None, None, Some("settings.html"))?;
+            open_page(&app, None, None, Some("settings.html"), None)?;
         }
     }
     Ok(())
@@ -289,11 +313,25 @@ fn open_settings(app: AppHandle, st: State<AppState>) -> Result<(), String> {
 
 #[tauri::command]
 fn switch_tab(app: AppHandle, st: State<AppState>, id: u32) {
-    {
+    let revive = {
         let mut t = st.tabs.lock().unwrap();
-        if t.list.iter().any(|x| x.id == id) {
+        let now = std::time::Instant::now();
+        if let Some(prev) = t.active {
+            if let Some(p) = t.list.iter_mut().find(|x| x.id == prev) {
+                p.last_active = now;
+            }
+        }
+        let tab = t.list.iter().find(|x| x.id == id).cloned_info();
+        if tab.is_some() {
             t.active = Some(id);
             t.overlay = false;
+        }
+        tab.filter(|(_, _, discarded)| *discarded)
+    };
+    if let Some((url, profile, _)) = revive {
+        if let Some(url) = url {
+            let _ = open_page(&app, Some(url), Some(profile), None, Some(id));
+            return;
         }
     }
     layout(&app);
@@ -400,6 +438,8 @@ pub fn run() {
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             let blocker = Arc::new(Blocker::new());
+            memory::init();
+            memory::spawn_reaper(app.handle().clone());
             native_filter::load_cached(app.handle(), &dir.join("filters").join("webkit-store"));
             filters::spawn_updater(app.handle().clone(), blocker.clone(), dir.join("filters"));
             app.manage(AppState {
@@ -446,4 +486,13 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running the application");
+}
+
+trait ClonedInfo {
+    fn cloned_info(self) -> Option<(Option<String>, String, bool)>;
+}
+impl ClonedInfo for Option<&Tab> {
+    fn cloned_info(self) -> Option<(Option<String>, String, bool)> {
+        self.map(|t| (t.url.clone(), t.profile.clone(), t.discarded))
+    }
 }

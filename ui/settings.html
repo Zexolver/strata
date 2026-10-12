@@ -18,6 +18,10 @@
   <div class="row"><span>Block ads &amp; trackers<small>Brave's adblock engine with EasyList, EasyPrivacy, uBlock and Brave lists</small></span>
     <input type="checkbox" id="adblock"></div>
 </section>
+<section id="performance" class="hidden"><h2>Performance</h2>
+  <div class="row"><span>Unload idle tabs<small>Background tabs not used for this long are unloaded to free memory, and reload when you click them</small></span>
+    <select id="discard"><option value="0">Never</option><option value="2">After 2 minutes</option><option value="5">After 5 minutes</option><option value="10">After 10 minutes</option><option value="30">After 30 minutes</option></select></div>
+</section>
 <section id="profiles" class="hidden"><h2>Profiles <span class="badge">experimental</span></h2>
   <div class="row"><span>Isolated profiles<small>Each profile has its own cookies, storage and cache, and can use its own proxy. Sites cannot tell the profiles share a browser.</small></span>
     <input type="checkbox" id="profilesOn"></div>

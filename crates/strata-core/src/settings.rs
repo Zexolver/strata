@@ -20,6 +20,8 @@ pub struct Settings {
     /// Id from `nav::ENGINES`, or "custom" to use `custom_search`.
     pub search_engine: String,
     pub custom_search: String,
+    /// Minutes a background tab may sit idle before its page is unloaded to free memory (0 = never).
+    pub discard_minutes: u32,
 }
 
 impl Default for Settings {
@@ -30,6 +32,7 @@ impl Default for Settings {
             profiles_enabled: false,
             search_engine: nav::DEFAULT_ENGINE.into(),
             custom_search: String::new(),
+            discard_minutes: 5,
         }
     }
 }
