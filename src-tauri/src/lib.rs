@@ -136,11 +136,17 @@ fn open_tab(app: &AppHandle, input: Option<String>, profile: Option<String>) -> 
         let s = st.settings.lock().unwrap();
         (s.search_template(), s.home_url())
     };
-    let target = match input.as_deref().map(|i| resolve_input(i, &template)) {
-        Some(u) if u != "about:blank" => u,
-        _ => home,
+    let _ = home;
+    let target = input.as_deref().map(|i| resolve_input(i, &template)).filter(|u| u != "about:blank");
+    let url = match &target {
+        Some(u) => WebviewUrl::External(u.parse().map_err(|_| "bad url")?),
+        None => WebviewUrl::App("newtab.html".into()),
     };
-    let url = WebviewUrl::External(target.parse().map_err(|_| "bad url")?);
+    let engine_name = {
+        let s = st.settings.lock().unwrap();
+        if s.search_engine == "custom" { "your search engine".to_string() } else { strata_core::nav::engine(&s.search_engine).map(|e| e.name.to_string()).unwrap_or_default() }
+    };
+    let newtab_init = format!("window.__STRATA={};", serde_json::json!({"template": template, "engine": engine_name}));
 
     let (app_load, app_title) = (app.clone(), app.clone());
     let (blocker_nav, blocker_load) = (st.blocker.clone(), st.blocker.clone());
@@ -185,6 +191,9 @@ fn open_tab(app: &AppHandle, input: Option<String>, profile: Option<String>) -> 
                 tauri::webview::NewWindowResponse::Deny
             }
         });
+    if target.is_none() {
+        builder = builder.initialization_script(newtab_init);
+    }
     if let Some(p) = prof.proxy.as_deref().and_then(|p| p.parse().ok()) {
         builder = builder.proxy_url(p);
     }

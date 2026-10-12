@@ -1,6 +1,6 @@
 [package]
 name = "strata"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 license = "MPL-2.0"
 description = "A lightweight, secure browser with isolated profiles"

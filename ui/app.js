@@ -23,13 +23,15 @@ function render() {
     if (multi) el.style.borderTopColor = profileOf(t.profile)?.color || 'transparent';
     const title = document.createElement('span');
     title.className = 'title';
-    title.textContent = i.loading ? 'Loading…' : isNewTab(i.url) ? 'New tab' : i.title || i.url;
+    title.textContent = isNewTab(i.url) ? (i.title || 'New tab') : i.title || (i.loading ? 'Loading…' : i.url);
+    if (i.loading) { const sp = document.createElement('span'); sp.className = 'spin'; el.append(sp); }
     const x = document.createElement('button');
     x.className = 'x';
     x.textContent = '×';
     x.onclick = (e) => { e.stopPropagation(); invoke('close_tab', { id: t.id }); };
     el.onclick = () => { setPanel(false); invoke('switch_tab', { id: t.id }); };
     el.append(title, x);
+    if (i.loading) el.prepend(el.querySelector('.spin'));
     tabs.append(el);
   }
 
